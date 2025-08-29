@@ -33,6 +33,18 @@ export const useLeaderboard = ({
       setLoading(true)
       setError(null)
 
+      // Check if we're in a browser environment
+      if (typeof window === 'undefined') {
+        setData([])
+        setTotalCount(0)
+        return
+      }
+
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timeout')), 10000)
+      )
+
       // Get date filter based on period
       const dateFilter = getDateFilter(period)
       
@@ -61,10 +73,17 @@ export const useLeaderboard = ({
         query = query.gte('token_usage.usage_date', dateFilter)
       }
 
-      const { data: rawData, error: queryError } = await query
+      const queryPromise = query
+
+      const result = await Promise.race([
+        queryPromise,
+        timeoutPromise
+      ])
+      
+      const { data: rawData, error: queryError } = result as { data: RawPetData[] | null; error: Error | null }
 
       if (queryError) {
-        throw new Error(`Failed to fetch leaderboard data: ${queryError.message}`)
+        throw new Error(`Database error: ${queryError.message}`)
       }
 
       // Process and aggregate the data
@@ -81,7 +100,25 @@ export const useLeaderboard = ({
       setTotalCount(processedData.length)
     } catch (err) {
       console.error('Error fetching leaderboard:', err)
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred')
+      
+      // Provide a more user-friendly error message
+      let errorMessage = 'Failed to load pet data'
+      
+      if (err instanceof Error) {
+        if (err.message.includes('timeout')) {
+          errorMessage = 'Connection timed out. Please check your internet connection.'
+        } else if (err.message.includes('fetch')) {
+          errorMessage = 'Network error. Please try again later.'
+        } else {
+          errorMessage = err.message
+        }
+      }
+      
+      setError(errorMessage)
+      
+      // Set empty data on error
+      setData([])
+      setTotalCount(0)
     } finally {
       setLoading(false)
     }

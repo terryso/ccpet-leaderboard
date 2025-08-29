@@ -6,7 +6,9 @@
       "Bash(pkill:*)",
       "Bash(npm run lint)",
       "Bash(curl:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(npm run build:*)",
+      "Bash(surge out:*)"
     ],
     "deny": [],
     "ask": []

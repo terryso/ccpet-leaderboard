@@ -8,7 +8,7 @@
         "start": "next start",
         "lint": "bunx tsc --noEmit && next lint",
         "format": "bunx biome format --write",
-        "deploy:surge": "surge out"
+        "deploy:surge": "surge out ccpet.surge.sh"
     },
     "dependencies": {
         "@radix-ui/react-tabs": "^1.1.13",
