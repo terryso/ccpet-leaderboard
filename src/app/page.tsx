@@ -44,7 +44,7 @@ const mapTabToPeriod = (tab: string): PeriodType => {
 };
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState("alltime");
+  const [activeTab, setActiveTab] = useState("today");
   const [sortBy] = useState<SortType>("tokens"); // We can add sorting controls later
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -131,18 +131,10 @@ export default function Home() {
             <div className="px-3 md:px-6 pt-4 md:pt-6">
               <TabsList className="grid w-full grid-cols-4 bg-muted h-auto">
                 <TabsTrigger 
-                  value="alltime" 
+                  value="today" 
                   className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-xs sm:text-sm px-1 sm:px-2 py-2"
                 >
-                  <span className="hidden sm:inline">All Time</span>
-                  <span className="sm:hidden">All</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="30days" 
-                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-xs sm:text-sm px-1 sm:px-2 py-2"
-                >
-                  <span className="hidden sm:inline">Last 30 Days</span>
-                  <span className="sm:hidden">30d</span>
+                  Today
                 </TabsTrigger>
                 <TabsTrigger 
                   value="7days" 
@@ -152,10 +144,18 @@ export default function Home() {
                   <span className="sm:hidden">7d</span>
                 </TabsTrigger>
                 <TabsTrigger 
-                  value="today" 
+                  value="30days" 
                   className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-xs sm:text-sm px-1 sm:px-2 py-2"
                 >
-                  Today
+                  <span className="hidden sm:inline">Last 30 Days</span>
+                  <span className="sm:hidden">30d</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="alltime" 
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-xs sm:text-sm px-1 sm:px-2 py-2"
+                >
+                  <span className="hidden sm:inline">All Time</span>
+                  <span className="sm:hidden">All</span>
                 </TabsTrigger>
               </TabsList>
             </div>
