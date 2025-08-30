@@ -59,11 +59,8 @@ export const useLeaderboard = ({
         })
       })
 
-      // Get date filter based on period
-      const dateFilter = getDateFilter(period)
-      
-      // Build the query
-      let query = supabase
+      // Build the query - always get all pets first
+      const query = supabase
         .from('pet_records')
         .select(`
           id,
@@ -73,7 +70,7 @@ export const useLeaderboard = ({
           birth_time,
           death_time,
           survival_days,
-          token_usage!inner(
+          token_usage(
             input_tokens,
             output_tokens,
             total_tokens,
@@ -82,11 +79,6 @@ export const useLeaderboard = ({
           )
         `)
         .abortSignal(currentController.signal) // Add abort signal to query
-
-      // Apply date filter if not all time
-      if (dateFilter) {
-        query = query.gte('token_usage.usage_date', dateFilter)
-      }
 
       const queryPromise = query
 
@@ -107,7 +99,7 @@ export const useLeaderboard = ({
       }
 
       // Process and aggregate the data
-      const processedData = processLeaderboardData(rawData || [], sortBy)
+      const processedData = processLeaderboardData(rawData || [], sortBy, period)
       
       // Apply limit and add ranks
       const limitedData = processedData.slice(0, limit)
@@ -236,7 +228,10 @@ interface TokenUsageData {
 }
 
 // Helper function to process and aggregate leaderboard data
-const processLeaderboardData = (rawData: RawPetData[], sortBy: SortType): LeaderboardEntry[] => {
+const processLeaderboardData = (rawData: RawPetData[], sortBy: SortType, period: PeriodType): LeaderboardEntry[] => {
+  // Get date filter for client-side filtering
+  const dateFilter = getDateFilter(period)
+  
   // Create a map to aggregate data by pet
   const petMap = new Map<string, LeaderboardEntry>()
 
@@ -272,9 +267,13 @@ const processLeaderboardData = (rawData: RawPetData[], sortBy: SortType): Leader
     const pet = petMap.get(petId)
     if (!pet) continue
     
-    // Aggregate token usage data
+    // Aggregate token usage data with date filtering
     if (record.token_usage && Array.isArray(record.token_usage)) {
       for (const usage of record.token_usage) {
+        // Apply date filter if specified
+        if (dateFilter && usage.usage_date < dateFilter) {
+          continue
+        }
         pet.total_tokens += usage.total_tokens || 0
         pet.total_cost += usage.cost_usd || 0
         pet.input_tokens += usage.input_tokens || 0
@@ -283,11 +282,15 @@ const processLeaderboardData = (rawData: RawPetData[], sortBy: SortType): Leader
     } else if (record.token_usage) {
       // Single token_usage record
       const usage = record.token_usage
-      pet.total_tokens += usage.total_tokens || 0
-      pet.total_cost += usage.cost_usd || 0
-      pet.input_tokens += usage.input_tokens || 0
-      pet.output_tokens += usage.output_tokens || 0
+      // Apply date filter if specified
+      if (!dateFilter || usage.usage_date >= dateFilter) {
+        pet.total_tokens += usage.total_tokens || 0
+        pet.total_cost += usage.cost_usd || 0
+        pet.input_tokens += usage.input_tokens || 0
+        pet.output_tokens += usage.output_tokens || 0
+      }
     }
+    // If no token_usage records, the pet will still be included with 0 values
   }
 
   // Convert to array and sort
