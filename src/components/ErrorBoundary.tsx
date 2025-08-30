@@ -25,6 +25,15 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('Application error:', error, errorInfo);
+    
+    // Log additional context for debugging
+    if (error.message.includes('ccpet.surge.sh')) {
+      console.error('Network-related error detected:', {
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        timestamp: new Date().toISOString()
+      });
+    }
   }
 
   render() {

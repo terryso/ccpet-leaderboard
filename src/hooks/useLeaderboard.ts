@@ -29,6 +29,9 @@ export const useLeaderboard = ({
   const [totalCount, setTotalCount] = useState(0)
 
   const fetchLeaderboard = React.useCallback(async () => {
+    // Create abort controller for this request
+    const abortController = new AbortController()
+    
     try {
       setLoading(true)
       setError(null)
@@ -40,10 +43,21 @@ export const useLeaderboard = ({
         return
       }
 
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Request timeout')), 10000)
-      )
+      // Store abort controller for cleanup
+      const currentController = abortController
+
+      // Add timeout with abort signal
+      const timeoutPromise = new Promise((_, reject) => {
+        const timeoutId = setTimeout(() => {
+          currentController.abort()
+          reject(new Error('Request timeout'))
+        }, 15000) // Increased timeout to 15 seconds
+        
+        // Clear timeout if request completes
+        currentController.signal.addEventListener('abort', () => {
+          clearTimeout(timeoutId)
+        })
+      })
 
       // Get date filter based on period
       const dateFilter = getDateFilter(period)
@@ -67,6 +81,7 @@ export const useLeaderboard = ({
             usage_date
           )
         `)
+        .abortSignal(currentController.signal) // Add abort signal to query
 
       // Apply date filter if not all time
       if (dateFilter) {
@@ -79,6 +94,11 @@ export const useLeaderboard = ({
         queryPromise,
         timeoutPromise
       ])
+      
+      // Check if request was aborted
+      if (currentController.signal.aborted) {
+        return
+      }
       
       const { data: rawData, error: queryError } = result as { data: RawPetData[] | null; error: Error | null }
 
@@ -96,18 +116,26 @@ export const useLeaderboard = ({
         rank: index + 1
       }))
 
-      setData(rankedData)
-      setTotalCount(processedData.length)
+      // Only update state if component is still mounted
+      if (!currentController.signal.aborted) {
+        setData(rankedData)
+        setTotalCount(processedData.length)
+      }
     } catch (err) {
+      // Don't handle errors if request was aborted
+      if (abortController.signal.aborted) {
+        return
+      }
+      
       console.error('Error fetching leaderboard:', err)
       
       // Provide a more user-friendly error message
       let errorMessage = 'Failed to load pet data'
       
       if (err instanceof Error) {
-        if (err.message.includes('timeout')) {
+        if (err.message.includes('timeout') || err.message.includes('aborted')) {
           errorMessage = 'Connection timed out. Please check your internet connection.'
-        } else if (err.message.includes('fetch')) {
+        } else if (err.message.includes('fetch') || err.message.includes('network')) {
           errorMessage = 'Network error. Please try again later.'
         } else {
           errorMessage = err.message
@@ -120,7 +148,15 @@ export const useLeaderboard = ({
       setData([])
       setTotalCount(0)
     } finally {
-      setLoading(false)
+      // Only update loading state if not aborted
+      if (!abortController.signal.aborted) {
+        setLoading(false)
+      }
+    }
+
+    // Return cleanup function
+    return () => {
+      abortController.abort()
     }
   }, [period, sortBy, limit])
 
@@ -129,7 +165,18 @@ export const useLeaderboard = ({
   }
 
   useEffect(() => {
-    fetchLeaderboard()
+    const cleanup = fetchLeaderboard()
+    
+    // Return cleanup function for useEffect
+    return () => {
+      if (cleanup && typeof cleanup.then === 'function') {
+        cleanup.then((cleanupFn) => {
+          if (typeof cleanupFn === 'function') {
+            cleanupFn()
+          }
+        })
+      }
+    }
   }, [fetchLeaderboard])
 
   return {
@@ -193,7 +240,7 @@ const processLeaderboardData = (rawData: RawPetData[], sortBy: SortType): Leader
   // Create a map to aggregate data by pet
   const petMap = new Map<string, LeaderboardEntry>()
 
-  rawData.forEach((record) => {
+  for (const record of rawData) {
     const petId = record.id
     
     if (!petMap.has(petId)) {
@@ -222,16 +269,17 @@ const processLeaderboardData = (rawData: RawPetData[], sortBy: SortType): Leader
       })
     }
 
-    const pet = petMap.get(petId)!
+    const pet = petMap.get(petId)
+    if (!pet) continue
     
     // Aggregate token usage data
     if (record.token_usage && Array.isArray(record.token_usage)) {
-      record.token_usage.forEach((usage: TokenUsageData) => {
+      for (const usage of record.token_usage) {
         pet.total_tokens += usage.total_tokens || 0
         pet.total_cost += usage.cost_usd || 0
         pet.input_tokens += usage.input_tokens || 0
         pet.output_tokens += usage.output_tokens || 0
-      })
+      }
     } else if (record.token_usage) {
       // Single token_usage record
       const usage = record.token_usage
@@ -240,7 +288,7 @@ const processLeaderboardData = (rawData: RawPetData[], sortBy: SortType): Leader
       pet.input_tokens += usage.input_tokens || 0
       pet.output_tokens += usage.output_tokens || 0
     }
-  })
+  }
 
   // Convert to array and sort
   const petsArray = Array.from(petMap.values())

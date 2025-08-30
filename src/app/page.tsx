@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -47,6 +47,12 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState("alltime");
   const [sortBy] = useState<SortType>("tokens"); // We can add sorting controls later
   const [copied, setCopied] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Prevent hydration issues
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Use the real data hook
   const { data: leaderboardData, loading, error, totalCount, refetch } = useLeaderboard({
@@ -54,6 +60,20 @@ export default function Home() {
     sortBy,
     limit: 25
   });
+
+  // Don't render until mounted to prevent hydration mismatch
+  if (!mounted) {
+    return (
+      <div className="h-screen overflow-y-auto bg-background">
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText("npx ccpet");
@@ -239,6 +259,11 @@ export default function Home() {
                               Status
                             </div>
                           </TableHead>
+                          <TableHead className="text-right font-semibold text-muted-foreground w-24">
+                            <div className="flex items-center justify-end gap-1">
+                              Survival
+                            </div>
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                     <TableBody>
@@ -268,6 +293,11 @@ export default function Home() {
                           <TableCell className="text-right align-middle">
                             <span className={`text-sm font-medium whitespace-nowrap ${pet.is_alive ? 'text-green-600' : 'text-red-600'}`}>
                               {pet.is_alive ? '✅ Alive' : '💀 Dead'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right align-middle">
+                            <span className="text-sm font-medium text-foreground">
+                              {pet.survival_days}d
                             </span>
                           </TableCell>
                         </TableRow>
